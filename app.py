@@ -1,16 +1,54 @@
-# This is a sample Python script.
+import streamlit as st
+from dotenv import load_dotenv
+from PyPDF2 import PdfReader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings, HuggingFaceInstructEmbeddings
+from langchain.vectorstores import FAISS
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+def get_pdf_text(pdf_docs):
+    text = ""
+    for pdf in pdf_docs:
+        pdf_reader = PdfReader(pdf)
+        for page in pdf_reader.pages:
+            text += page.extract_text()
+    return text
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
+def get_text_chunks(text):
+    text_splitter = CharacterTextSplitter(
+         separator="\n",
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len
+    )
+    chucks = text_splitter.split_text(text)
+    return chucks
 
+def get_vectorstore(text_chunks):
+    # embeddings = OpenAIEmbeddings()
+    embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instuctor-xl")
+    vectorstore = FAISS.from_texts(text=text_chunks, embedding=embeddings)
+    return vectorstore
 
-# Press the green button in the gutter to run the script.
+def main():
+    load_dotenv()
+    st.set_page_config(page_title="chat", page_icon=":books:")
+
+    st.header("chat :books:")
+    st.text_input("Ask question:")
+
+    with st.sidebar:
+        st.subheader("your documents")
+        pdf_docs = st.file_uploader("upload", accept_multiple_files=True)
+        if st.button("Process"):
+            with st.spinner("Processing"):
+                raw_text = get_pdf_text(pdf_docs)
+
+                text_chunks = get_text_chunks(raw_text)
+
+                vectorstore = get_vectorstore(text_chunks)
+
+                conversation = get_conversation_chain(vectorstore)
+
 if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    main()
